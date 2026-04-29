@@ -401,6 +401,7 @@
       <div class="checkmark">✓</div>
       <h2>Coding submitted!</h2>
       <p style="margin-top:10px;">Your instructor will open the results shortly.<br>Follow the discussion on the projected screen.</p>
+      <button class="btn-secondary" onclick="reopenCoding()" style="margin-top:24px; width:100%; text-align:center;">Edit my coding →</button>
     </div>
   </div>
 </div>
@@ -466,7 +467,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ══════════════════════════════════════════
 //  FIREBASE INIT
@@ -505,8 +506,9 @@ const STATE = {
   pendingSelection: null,
   currentView: 'heatmap',
   activeTab: 'codes',
-  // Firebase listeners to detach on cleanup
-  sessionListener: null,
+  // Firebase unsubscribe functions
+  unsubMeta: null,
+  unsubCodings: null,
 };
 
 // ══════════════════════════════════════════
@@ -544,6 +546,15 @@ async function fbSaveStudentCoding(code, studentKey, codings) {
 
 async function fbUpdateMeta(code, updates) {
   await update(metaRef(code), updates);
+}
+
+function normaliseThemes(raw) {
+  // Firebase may convert arrays to objects — normalise back
+  const arr = Array.isArray(raw) ? raw : Object.values(raw || {});
+  return arr.map(t => ({
+    name: t.name || 'New theme',
+    codes: Array.isArray(t.codes) ? t.codes : Object.values(t.codes || {})
+  }));
 }
 
 function normaliseCodings(rawCodings) {
@@ -636,11 +647,11 @@ function startInstructorListener() {
   // Separate listeners for meta and codings for reliability
 
   // 1. Meta listener
-  onValue(metaRef(STATE.roomCode), (snap) => {
+  STATE.unsubMeta = onValue(metaRef(STATE.roomCode), (snap) => {
     if (!snap.exists()) return;
     const meta = snap.val();
     STATE.codingOpen = meta.codingOpen !== false;
-    STATE.themes = meta.themes || [];
+    STATE.themes = normaliseThemes(meta.themes);
     const dot = document.getElementById('status-dot');
     const txt = document.getElementById('status-text');
     const btn = document.getElementById('btn-toggle-coding');
@@ -659,8 +670,7 @@ function startInstructorListener() {
   });
 
   // 2. Codings listener — fires whenever any student submits
- onValue(codingsRef(STATE.roomCode), (snap) => {
-    console.log('CODINGS FIRED, exists:', snap.exists(), 'val:', JSON.stringify(snap.val()));
+  STATE.unsubCodings = onValue(codingsRef(STATE.roomCode), (snap) => {
     STATE.allCodings = {};
     if (snap.exists()) {
       const codings = snap.val();
@@ -1024,7 +1034,7 @@ window.joinSession = async function() {
     // Session already in results mode — load codings and show results
     const codings = await fbLoadCodings(code);
     STATE.allCodings = normaliseCodings(codings);
-    STATE.themes = meta.themes || [];
+    STATE.themes = normaliseThemes(meta.themes);
     renderResults(false);
     showScreen('screen-results');
     return;
@@ -1047,7 +1057,7 @@ function startStudentCoding() {
 
 function startStudentListener() {
   const mRef = metaRef(STATE.roomCode);
-  STATE.sessionListener = onValue(mRef, (snap) => {
+  STATE.unsubMeta = onValue(mRef, (snap) => {
     if (!snap.exists()) return;
     const meta = snap.val();
     STATE.codingOpen = meta.codingOpen !== false;
@@ -1068,7 +1078,7 @@ function startStudentListener() {
       get(codingsRef(STATE.roomCode)).then(snap2 => {
         const codings = snap2.exists() ? snap2.val() : {};
         STATE.allCodings = normaliseCodings(codings);
-        STATE.themes = meta.themes || [];
+        STATE.themes = normaliseThemes(meta.themes);
         renderResults(false);
         showScreen('screen-results');
       });
@@ -1162,12 +1172,12 @@ window.closePopup = function() {
 function renderMyCodesList() {
   document.getElementById('my-code-count').textContent = STATE.myCodes.length;
   document.getElementById('my-codes-list').innerHTML = STATE.myCodes.map((c, i) => `
-    <div class="my-code-entry">
+    <div class="my-code-entry" onclick="highlightMyCode(${i})" style="cursor:pointer;" title="Click to highlight in transcript">
       <div style="flex:1;">
         <div class="code-tag">${escHtml(c.code)}</div>
         <div class="code-excerpt">"${escHtml(c.text.trim().slice(0,60))}${c.text.trim().length>60?'…':''}"</div>
       </div>
-      <button class="btn-delete" onclick="deleteMyCode(${i})">×</button>
+      <button class="btn-delete" onclick="event.stopPropagation(); deleteMyCode(${i})">×</button>
     </div>`).join('')
     || '<div style="font-family:\'DM Mono\',monospace; font-size:0.8rem; color:var(--muted); font-style:italic; padding:10px 0;">No codes yet. Select text to begin.</div>';
 }
@@ -1176,6 +1186,51 @@ window.deleteMyCode = function(i) {
   STATE.myCodes.splice(i, 1);
   renderStudentHighlights();
   renderMyCodesList();
+};
+
+// Highlight a specific code in the transcript when clicked in sidebar
+window.highlightMyCode = function(i) {
+  const target = STATE.myCodes[i];
+  const transcript = STATE.transcript || '';
+  const container = document.getElementById('student-transcript-text');
+  const boundaries = new Set([0, transcript.length]);
+  STATE.myCodes.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+  const sorted = [...boundaries].sort((a,b) => a-b);
+
+  let html = '';
+  for (let j = 0; j < sorted.length - 1; j++) {
+    const s = sorted[j], e = sorted[j+1];
+    const text = escHtml(transcript.slice(s, e));
+    const isTarget = (s >= target.start && e <= target.end);
+    const isOther = STATE.myCodes.some((c, ci) => ci !== i && c.start <= s && c.end >= e);
+    if (isTarget) {
+      html += `<span class="student-coded-span" style="background:rgba(200,75,47,0.45); border-bottom:2px solid var(--accent);">${text}</span>`;
+    } else if (isOther) {
+      html += `<span class="student-coded-span">${text}</span>`;
+    } else {
+      html += `<span style="opacity:0.35;">${text}</span>`;
+    }
+  }
+  container.innerHTML = html;
+
+  // Scroll to the highlighted passage
+  const el = container.querySelector('[style*="0.45"]');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Re-render normally after 2 seconds
+  setTimeout(() => renderStudentHighlights(), 2000);
+};
+
+// Reopen coding after submission
+window.reopenCoding = function() {
+  const btn = document.getElementById('student-submit-btn');
+  btn.disabled = false;
+  btn.textContent = 'Resubmit my coding →';
+  document.getElementById('submit-note').textContent = 'Add or remove codes, then resubmit.';
+  document.getElementById('submit-note').style.color = 'var(--muted)';
+  renderStudentHighlights();
+  renderMyCodesList();
+  showScreen('screen-student-coding');
 };
 
 window.submitCoding = async function() {
@@ -1188,26 +1243,20 @@ window.submitCoding = async function() {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
- try {
+  try {
     const studentKey = STATE.studentId.replace(/[.#$[\]|]/g, '_');
-    console.log('Submitting to path:', `sessions/${STATE.roomCode}/codings/${studentKey}`);
-    console.log('Codings data:', JSON.stringify(STATE.myCodes));
     await fbSaveStudentCoding(STATE.roomCode, studentKey, STATE.myCodes);
-    console.log('Submit SUCCESS');
-    // Detach listener — no need to keep polling after submit
-    if (STATE.sessionListener) {
-      off(metaRef(STATE.roomCode), 'value', STATE.sessionListener);
-    }
+    // Detach listeners after submit
+    if (STATE.unsubMeta) { STATE.unsubMeta(); STATE.unsubMeta = null; }
+    if (STATE.unsubCodings) { STATE.unsubCodings(); STATE.unsubCodings = null; }
     showScreen('screen-submitted');
     // Re-attach a lightweight listener just for resultsOpen
     startStudentListener();
-} catch(e) {
-    console.error('Submit FAILED:', e.message, e.code, e);
+  } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Submit my coding →';
     document.getElementById('submit-note').textContent = 'Submission failed — check your connection and try again.';
     document.getElementById('submit-note').style.color = 'var(--accent)';
-  }
   }
 };
 
