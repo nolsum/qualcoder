@@ -546,6 +546,20 @@ async function fbUpdateMeta(code, updates) {
   await update(metaRef(code), updates);
 }
 
+function normaliseCodings(rawCodings) {
+  // Firebase may convert arrays to objects if keys are numeric-ish
+  // This normalises back to a flat array of coding objects
+  const result = {};
+  Object.entries(rawCodings).forEach(([key, val]) => {
+    if (!val || typeof val !== "object") return;
+    let arr = val.codings;
+    if (!arr) { arr = []; }
+    else if (!Array.isArray(arr)) { arr = Object.values(arr); }
+    result[key + "|" + (val.name || "Anonymous")] = arr;
+  });
+  return result;
+}
+
 // ══════════════════════════════════════════
 //  SCREEN NAVIGATION
 // ══════════════════════════════════════════
@@ -619,28 +633,14 @@ window.createSession = async function() {
 // ══════════════════════════════════════════
 
 function startInstructorListener() {
-  // Listen to the whole session node for live updates
-  const sRef = sessionRef(STATE.roomCode);
-  STATE.sessionListener = onValue(sRef, (snap) => {
+  // Separate listeners for meta and codings for reliability
+
+  // 1. Meta listener
+  onValue(metaRef(STATE.roomCode), (snap) => {
     if (!snap.exists()) return;
-    const data = snap.val();
-    const meta = data.meta || {};
-    const codings = data.codings || {};
-
-    // Rebuild allCodings: { studentKey: [{start,end,text,code},...] }
-    STATE.allCodings = {};
-    Object.entries(codings).forEach(([key, val]) => {
-      STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
-    });
-
+    const meta = snap.val();
     STATE.codingOpen = meta.codingOpen !== false;
     STATE.themes = meta.themes || [];
-
-    updateDashboardStats();
-    if (STATE.currentView === 'heatmap') renderTranscript();
-    renderCodesList();
-    if (STATE.activeTab === 'themes') renderThemesTab();
-
     const dot = document.getElementById('status-dot');
     const txt = document.getElementById('status-text');
     const btn = document.getElementById('btn-toggle-coding');
@@ -655,6 +655,26 @@ function startInstructorListener() {
       btn.textContent = 'Re-open coding';
       btn.className = 'btn-control btn-open';
     }
+    if (STATE.activeTab === 'themes') renderThemesTab();
+  });
+
+  // 2. Codings listener — fires whenever any student submits
+  onValue(codingsRef(STATE.roomCode), (snap) => {
+    STATE.allCodings = {};
+    if (snap.exists()) {
+      const codings = snap.val();
+      Object.entries(codings).forEach(([key, val]) => {
+        if (!val || typeof val !== 'object') return;
+        const displayKey = key + '|' + (val.name || 'Anonymous');
+        let arr = val.codings;
+        if (!arr) { arr = []; }
+        else if (!Array.isArray(arr)) { arr = Object.values(arr); }
+        STATE.allCodings[displayKey] = arr;
+      });
+    }
+    updateDashboardStats();
+    if (STATE.currentView === 'heatmap') renderTranscript();
+    renderCodesList();
   });
 }
 
@@ -674,10 +694,7 @@ window.openResults = async function() {
   await fbUpdateMeta(STATE.roomCode, { resultsOpen: true });
   // Load latest codings then show results
   const codings = await fbLoadCodings(STATE.roomCode);
-  STATE.allCodings = {};
-  Object.entries(codings).forEach(([key, val]) => {
-    STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
-  });
+  STATE.allCodings = normaliseCodings(codings);
   renderResults(true);
   showScreen('screen-results');
 };
@@ -1005,10 +1022,7 @@ window.joinSession = async function() {
   if (meta.resultsOpen) {
     // Session already in results mode — load codings and show results
     const codings = await fbLoadCodings(code);
-    STATE.allCodings = {};
-    Object.entries(codings).forEach(([key, val]) => {
-      STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
-    });
+    STATE.allCodings = normaliseCodings(codings);
     STATE.themes = meta.themes || [];
     renderResults(false);
     showScreen('screen-results');
@@ -1052,10 +1066,7 @@ function startStudentListener() {
       // Fetch all codings then show
       get(codingsRef(STATE.roomCode)).then(snap2 => {
         const codings = snap2.exists() ? snap2.val() : {};
-        STATE.allCodings = {};
-        Object.entries(codings).forEach(([key, val]) => {
-          STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
-        });
+        STATE.allCodings = normaliseCodings(codings);
         STATE.themes = meta.themes || [];
         renderResults(false);
         showScreen('screen-results');
@@ -1117,8 +1128,16 @@ function handleSelection(e) {
 
   const rect = range.getBoundingClientRect();
   const popup = document.getElementById('code-popup');
-  popup.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
-  popup.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+  const popupH = 120; // approximate popup height
+  const popupW = 280;
+  // position: fixed — coordinates are relative to viewport, no scrollY needed
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - popupW - 8);
+  // show below selection if space, otherwise above
+  let top = rect.bottom + 8;
+  if (top + popupH > window.innerHeight - 8) top = rect.top - popupH - 8;
+  if (top < 8) top = 8;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
   popup.classList.add('visible');
   document.getElementById('code-input').value = '';
   setTimeout(() => document.getElementById('code-input').focus(), 50);
