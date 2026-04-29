@@ -533,6 +533,7 @@ const STATE = {
   activeTab: 'codes',
   // Firebase unsubscribe functions
   unsubMeta: null,
+  _pendingCode: null,
   unsubCodings: null,
 };
 
@@ -676,7 +677,12 @@ function startInstructorListener() {
     if (!snap.exists()) return;
     const meta = snap.val();
     STATE.codingOpen = meta.codingOpen !== false;
-    STATE.themes = normaliseThemes(meta.themes);
+    // Only update themes from Firebase if user is not currently editing a theme name
+    const activeEl = document.activeElement;
+    const editingTheme = activeEl && activeEl.classList.contains('theme-name-input');
+    if (!editingTheme) {
+      STATE.themes = normaliseThemes(meta.themes);
+    }
     const dot = document.getElementById('status-dot');
     const txt = document.getElementById('status-text');
     const btn = document.getElementById('btn-toggle-coding');
@@ -839,20 +845,43 @@ function renderThemesTab() {
   const allCodes = [...new Set(allCodings.map(c => c.code))];
   const assignedCodes = STATE.themes.flatMap(t => t.codes);
   const unassigned = allCodes.filter(c => !assignedCodes.includes(c));
+  const pending = STATE._pendingCode;
 
-  document.getElementById('unassigned-chips').innerHTML = unassigned.length === 0
-    ? '<span style="font-family:\'DM Mono\',monospace; font-size:0.72rem; color:#555;">All codes assigned</span>'
-    : unassigned.map(c => `<span class="unassigned-chip" onclick="assignCodeToTheme('${escAttr(c)}')">${escHtml(c)}</span>`).join('');
+  // Unassigned pool
+  let poolHtml = '';
+  if (unassigned.length === 0) {
+    poolHtml = '<span style="font-family:'DM Mono',monospace; font-size:0.72rem; color:#555;">All codes assigned to themes</span>';
+  } else if (pending) {
+    // Picking mode — show which code is being assigned and cancel option
+    poolHtml = `<div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--accent-light); margin-bottom:8px;">
+      Assigning: <strong>${escHtml(pending)}</strong> — click a theme below
+      <button onclick="cancelAssign()" style="margin-left:8px; background:none; border:none; color:#888; cursor:pointer; font-family:'DM Mono',monospace; font-size:0.7rem;">cancel</button>
+    </div>` + unassigned.map(c => `<span class="unassigned-chip" style="${c===pending?'border-color:var(--accent-light);color:var(--accent-light);':''}">${escHtml(c)}</span>`).join('');
+  } else {
+    poolHtml = unassigned.map(c =>
+      `<span class="unassigned-chip" onclick="assignCodeToTheme('${escAttr(c)}')" title="Click to assign to a theme">${escHtml(c)}</span>`
+    ).join('');
+  }
+  document.getElementById('unassigned-chips').innerHTML = poolHtml;
 
-  document.getElementById('themes-list').innerHTML = STATE.themes.map((theme, ti) => `
-    <div class="theme-item">
+  // Themes list
+  document.getElementById('themes-list').innerHTML = STATE.themes.length === 0
+    ? '<div style="font-family:'DM Mono',monospace; font-size:0.75rem; color:#555; padding:8px 0;">Click + Add theme to create your first theme</div>'
+    : STATE.themes.map((theme, ti) => `
+    <div class="theme-item" style="${pending ? 'cursor:pointer; outline: 1px solid #444;' : ''}" ${pending ? `onclick="assignToSpecificTheme(${ti})" title="Assign '${escAttr(pending)}' to this theme"` : ''}>
       <div class="theme-item-header">
-        <input class="theme-name-input" value="${escHtml(theme.name)}" placeholder="Theme name…" oninput="renameTheme(${ti}, this.value)">
-        <button class="btn-delete" onclick="deleteTheme(${ti})">×</button>
+        <input class="theme-name-input" value="${escHtml(theme.name)}" placeholder="Theme name…"
+          oninput="renameTheme(${ti}, this.value)"
+          onblur="renameThemeBlur(${ti}, this.value)"
+          onclick="event.stopPropagation()">
+        ${pending
+          ? `<span style="font-family:'DM Mono',monospace; font-size:0.68rem; color:var(--accent-light);">← assign here</span>`
+          : `<button class="btn-delete" onclick="deleteTheme(${ti})">×</button>`
+        }
       </div>
       <div class="theme-codes">
-        ${theme.codes.map(c => `<span class="theme-code-chip" onclick="unassignCode(${ti},'${escAttr(c)}')">${escHtml(c)} ×</span>`).join('')}
-        ${theme.codes.length===0 ? '<span style="font-size:0.72rem; font-family:\'DM Mono\',monospace; color:#555;">No codes yet</span>' : ''}
+        ${theme.codes.map(c => `<span class="theme-code-chip" onclick="event.stopPropagation(); unassignCode(${ti},'${escAttr(c)}')" title="Click to unassign">${escHtml(c)} ×</span>`).join('')}
+        ${theme.codes.length===0 ? `<span style="font-size:0.72rem; font-family:'DM Mono',monospace; color:#555;">${pending ? 'Click this theme to assign' : 'No codes yet — click a code above'}</span>` : ''}
       </div>
     </div>`).join('');
 }
@@ -868,6 +897,11 @@ window.addTheme = function() {
 };
 
 window.renameTheme = function(ti, name) {
+  // Only update local state — save on blur to avoid re-render loop
+  STATE.themes[ti].name = name;
+};
+
+window.renameThemeBlur = function(ti, name) {
   STATE.themes[ti].name = name;
   saveThemes();
 };
@@ -879,18 +913,31 @@ window.deleteTheme = function(ti) {
 };
 
 window.assignCodeToTheme = function(code) {
-  if (STATE.themes.length === 0) { window.addTheme(); }
+  if (STATE.themes.length === 0) {
+    // No themes yet — create one and assign immediately
+    STATE.themes.push({ name: 'New theme', codes: [code] });
+    saveThemes(); renderThemesTab(); return;
+  }
   if (STATE.themes.length === 1) {
     if (!STATE.themes[0].codes.includes(code)) STATE.themes[0].codes.push(code);
     saveThemes(); renderThemesTab(); return;
   }
-  const names = STATE.themes.map((t,i) => `${i+1}: ${t.name}`).join('\n');
-  const choice = prompt(`Assign "${code}" to which theme?\n\n${names}\n\nEnter number:`);
-  const idx = parseInt(choice) - 1;
-  if (idx >= 0 && idx < STATE.themes.length) {
-    if (!STATE.themes[idx].codes.includes(code)) STATE.themes[idx].codes.push(code);
-    saveThemes(); renderThemesTab();
-  }
+  // Multiple themes — show inline picker
+  STATE._pendingCode = code;
+  renderThemesTab(); // re-render with picker active
+};
+
+window.assignToSpecificTheme = function(ti) {
+  const code = STATE._pendingCode;
+  if (!code) return;
+  if (!STATE.themes[ti].codes.includes(code)) STATE.themes[ti].codes.push(code);
+  STATE._pendingCode = null;
+  saveThemes(); renderThemesTab();
+};
+
+window.cancelAssign = function() {
+  STATE._pendingCode = null;
+  renderThemesTab();
 };
 
 window.unassignCode = function(ti, code) {
