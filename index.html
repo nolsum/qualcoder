@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QualCoder — Qualitative Coding Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1814;
+    --paper: #f5f0e8;
+    --paper-dark: #ede7d9;
+    --accent: #c84b2f;
+    --accent-light: #e8735a;
+    --muted: #7a7369;
+    --border: #d4cdc0;
+    --green: #2d6a4f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  .app-header {
+    background: var(--ink); color: var(--paper);
+    padding: 14px 32px; display: flex; align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid var(--accent); flex-shrink: 0;
+  }
+  .app-header .logo { font-family: 'DM Mono', monospace; font-size: 1.1rem; letter-spacing: 0.08em; font-weight: 500; }
+  .app-header .logo span { color: var(--accent-light); }
+  .app-header .role-badge { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+
+  /* LANDING */
+  #screen-landing { background: var(--paper); align-items: center; justify-content: center; padding: 40px 20px; }
+  .landing-card { background: white; border: 1px solid var(--border); border-radius: 2px; padding: 52px 56px; max-width: 520px; width: 100%; box-shadow: 8px 8px 0 var(--paper-dark); }
+  .landing-card h1 { font-size: 2rem; line-height: 1.2; margin-bottom: 8px; }
+  .landing-card h1 em { color: var(--accent); font-style: italic; }
+  .landing-card .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 40px; font-family: 'DM Mono', monospace; letter-spacing: 0.04em; }
+  .role-buttons { display: flex; flex-direction: column; gap: 14px; }
+  .btn-role { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border: 2px solid var(--border); background: var(--paper); cursor: pointer; border-radius: 2px; text-align: left; transition: all 0.15s; font-family: 'Libre Baskerville', serif; }
+  .btn-role:hover { border-color: var(--accent); background: white; transform: translateX(3px); }
+  .btn-role .role-icon { font-size: 1.6rem; flex-shrink: 0; }
+  .btn-role .role-title { font-weight: 700; font-size: 1rem; display: block; margin-bottom: 2px; }
+  .btn-role .role-desc { font-size: 0.8rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* SETUP */
+  .setup-body { flex: 1; padding: 40px; max-width: 860px; margin: 0 auto; width: 100%; }
+  .setup-body h2 { font-size: 1.5rem; margin-bottom: 6px; }
+  .setup-body .step-desc { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.8rem; margin-bottom: 32px; letter-spacing: 0.04em; }
+  .field-label { display: block; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .field-group { margin-bottom: 28px; }
+  input[type="text"], textarea { width: 100%; padding: 12px 14px; border: 2px solid var(--border); background: white; font-family: 'Libre Baskerville', serif; font-size: 0.95rem; border-radius: 2px; color: var(--ink); transition: border-color 0.15s; }
+  input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 300px; line-height: 1.7; }
+  .btn-primary { background: var(--accent); color: white; border: none; padding: 14px 32px; font-family: 'DM Mono', monospace; font-size: 0.85rem; letter-spacing: 0.08em; cursor: pointer; border-radius: 2px; transition: all 0.15s; text-transform: uppercase; }
+  .btn-primary:hover { background: var(--ink); transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--muted); cursor: not-allowed; transform: none; }
+  .btn-secondary { background: transparent; color: var(--muted); border: 2px solid var(--border); padding: 12px 24px; font-family: 'DM Mono', monospace; font-size: 0.8rem; letter-spacing: 0.08em; cursor: pointer; border-radius: 2px; transition: all 0.15s; text-transform: uppercase; }
+  .btn-secondary:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* DASHBOARD */
+  .dashboard-layout { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: 0; overflow: hidden; }
+  .transcript-panel { padding: 32px 40px; overflow-y: auto; border-right: 1px solid var(--border); }
+  .sidebar-panel { padding: 24px; overflow-y: auto; background: var(--ink); color: var(--paper); }
+
+  .session-banner { background: var(--ink); color: var(--paper); padding: 12px 40px; display: flex; align-items: center; gap: 32px; font-family: 'DM Mono', monospace; font-size: 0.8rem; flex-shrink: 0; flex-wrap: wrap; }
+  .session-banner .room-code { font-size: 1.6rem; font-weight: 500; letter-spacing: 0.15em; color: var(--accent-light); }
+  .session-banner .stat { color: var(--muted); }
+  .session-banner .stat span { color: var(--paper); font-weight: 500; }
+  .btn-control { padding: 8px 18px; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.15s; }
+  .btn-open { background: var(--green); color: white; border: none; }
+  .btn-open:hover { background: #1e4d38; }
+  .btn-close { background: var(--accent); color: white; border: none; }
+  .btn-close:hover { background: #a33520; }
+  .btn-reveal { background: #5b4fcf; color: white; border: none; }
+  .btn-reveal:hover { background: #4338b8; }
+  .btn-export { background: transparent; color: var(--paper); border: 1px solid var(--muted); }
+  .btn-export:hover { border-color: var(--paper); }
+  .session-banner .controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .transcript-title { font-size: 0.75rem; font-family: 'DM Mono', monospace; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .view-toggle { display: flex; gap: 4px; margin-left: auto; }
+  .view-btn { padding: 4px 10px; font-size: 0.7rem; font-family: 'DM Mono', monospace; border: 1px solid var(--border); background: transparent; cursor: pointer; border-radius: 2px; letter-spacing: 0.06em; transition: all 0.12s; }
+  .view-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  #transcript-display { font-size: 1rem; line-height: 1.85; white-space: pre-wrap; word-break: break-word; position: relative; user-select: none; }
+  .coded-span { position: relative; cursor: pointer; border-radius: 2px; transition: background 0.12s; }
+  .coded-span:hover { filter: brightness(0.92); }
+  .coded-span .code-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; background: var(--ink); color: var(--paper); padding: 6px 10px; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 0.72rem; z-index: 100; max-width: 300px; white-space: normal; pointer-events: none; line-height: 1.4; }
+  .coded-span:hover .code-tooltip { display: block; }
+
+  .sidebar-section-title { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #333; }
+  .code-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #2a2a2a; cursor: pointer; transition: all 0.12s; }
+  .code-item:hover { padding-left: 4px; }
+  .code-count { font-family: 'DM Mono', monospace; font-size: 0.75rem; background: var(--accent); color: white; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; min-width: 28px; text-align: center; }
+  .code-label { font-size: 0.88rem; line-height: 1.3; color: #ddd; }
+  .no-codes-msg { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: #555; font-style: italic; text-align: center; padding: 40px 0; }
+
+  /* STUDENT */
+  .student-layout { flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 0; min-height: 0; overflow: hidden; }
+  .student-transcript { padding: 32px 40px; overflow-y: auto; }
+  .student-sidebar { padding: 24px; background: var(--paper-dark); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .student-transcript-text { font-size: 1rem; line-height: 1.85; white-space: pre-wrap; word-break: break-word; cursor: text; }
+  .student-transcript-text .student-coded-span { border-radius: 2px; background: rgba(200,75,47,0.15); border-bottom: 2px solid var(--accent); cursor: pointer; position: relative; }
+
+  /* POPUP */
+  .code-popup { position: fixed; background: white; border: 2px solid var(--ink); border-radius: 3px; padding: 14px 16px; box-shadow: 6px 6px 0 var(--ink); z-index: 1000; min-width: 240px; display: none; }
+  .code-popup.visible { display: block; }
+  .code-popup input { width: 100%; border: 1px solid var(--border); padding: 8px 10px; font-family: 'DM Mono', monospace; font-size: 0.85rem; margin-bottom: 10px; }
+  .code-popup-buttons { display: flex; gap: 8px; }
+  .btn-small { padding: 7px 14px; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.06em; cursor: pointer; border-radius: 2px; text-transform: uppercase; border: none; transition: all 0.12s; }
+  .btn-small-primary { background: var(--accent); color: white; }
+  .btn-small-primary:hover { background: var(--ink); }
+  .btn-small-cancel { background: var(--paper); color: var(--muted); border: 1px solid var(--border); }
+
+  .my-codes-title { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .my-code-entry { background: white; border: 1px solid var(--border); border-radius: 2px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; }
+  .my-code-entry .code-tag { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--accent); font-weight: 500; flex: 1; }
+  .my-code-entry .code-excerpt { font-size: 0.78rem; color: var(--muted); font-style: italic; margin-top: 2px; }
+  .btn-delete { background: none; border: none; color: var(--border); cursor: pointer; font-size: 1rem; padding: 0 2px; flex-shrink: 0; transition: color 0.12s; }
+  .btn-delete:hover { color: var(--accent); }
+  .student-submit-area { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); }
+  .submit-note { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; }
+
+  /* JOIN */
+  #screen-join { align-items: center; justify-content: center; padding: 40px 20px; background: var(--paper); }
+  .join-card { background: white; border: 1px solid var(--border); border-radius: 2px; padding: 48px 52px; max-width: 440px; width: 100%; box-shadow: 8px 8px 0 var(--paper-dark); }
+  .join-card h2 { font-size: 1.5rem; margin-bottom: 6px; }
+  .join-card .sub { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--muted); margin-bottom: 32px; }
+  .room-input { text-align: center; font-size: 2rem !important; letter-spacing: 0.3em; font-family: 'DM Mono', monospace !important; text-transform: uppercase; margin-bottom: 16px; }
+  .join-error { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--accent); margin-bottom: 12px; min-height: 1.2em; }
+
+  /* WAITING */
+  #screen-waiting { align-items: center; justify-content: center; background: var(--paper); }
+  .waiting-card { text-align: center; max-width: 400px; padding: 40px; }
+  .waiting-card .big-code { font-family: 'DM Mono', monospace; font-size: 3rem; letter-spacing: 0.2em; color: var(--accent); margin: 20px 0; }
+  .waiting-card p { font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--muted); }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* SUBMITTED */
+  #screen-submitted { align-items: center; justify-content: center; background: var(--paper); }
+  .submitted-card { text-align: center; max-width: 440px; padding: 60px 40px; background: white; border: 1px solid var(--border); box-shadow: 8px 8px 0 var(--paper-dark); }
+  .submitted-card .checkmark { font-size: 3rem; margin-bottom: 20px; }
+  .submitted-card h2 { margin-bottom: 10px; }
+  .submitted-card p { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--muted); }
+
+  /* RESULTS */
+  .results-layout { flex: 1; display: grid; grid-template-columns: 1fr 360px; gap: 0; min-height: 0; overflow: hidden; }
+  .results-transcript { padding: 32px 40px; overflow-y: auto; }
+  .results-sidebar { padding: 24px; overflow-y: auto; background: var(--ink); color: var(--paper); }
+  .heatmap-legend { display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 20px; flex-wrap: wrap; }
+  .legend-bar { display: flex; height: 10px; width: 120px; border-radius: 2px; overflow: hidden; }
+  .legend-bar div { flex: 1; }
+
+  /* THEMES */
+  .sidebar-tabs { display: flex; gap: 2px; margin-bottom: 20px; }
+  .tab-btn { flex: 1; padding: 8px 6px; font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; border: none; cursor: pointer; background: #252525; color: #666; transition: all 0.12s; border-radius: 2px; }
+  .tab-btn.active { background: var(--accent); color: white; }
+  .theme-item { background: #252525; border-radius: 3px; padding: 12px; margin-bottom: 10px; }
+  .theme-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .theme-name-input { background: transparent; border: none; border-bottom: 1px solid #444; color: var(--paper); font-family: 'DM Mono', monospace; font-size: 0.82rem; padding: 2px 4px; width: 180px; }
+  .theme-name-input:focus { outline: none; border-bottom-color: var(--accent-light); }
+  .theme-codes { display: flex; flex-wrap: wrap; gap: 5px; min-height: 28px; }
+  .theme-code-chip { font-family: 'DM Mono', monospace; font-size: 0.7rem; background: #333; color: #ccc; padding: 3px 8px; border-radius: 10px; cursor: pointer; transition: all 0.1s; }
+  .theme-code-chip:hover { background: var(--accent); color: white; }
+  .btn-add-theme { width: 100%; padding: 8px; background: transparent; border: 1px dashed #444; color: #666; font-family: 'DM Mono', monospace; font-size: 0.75rem; cursor: pointer; border-radius: 2px; margin-top: 6px; transition: all 0.12s; letter-spacing: 0.06em; }
+  .btn-add-theme:hover { border-color: var(--accent-light); color: var(--accent-light); }
+  .unassigned-pool { margin-bottom: 16px; }
+  .unassigned-pool-title { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #666; margin-bottom: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .unassigned-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .unassigned-chip { font-family: 'DM Mono', monospace; font-size: 0.7rem; background: #1a1a1a; color: #999; padding: 3px 8px; border-radius: 10px; cursor: pointer; border: 1px solid #333; transition: all 0.1s; }
+  .unassigned-chip:hover { border-color: var(--accent-light); color: var(--accent-light); }
+
+  /* PASSAGE DETAIL */
+  .passage-detail { background: #252525; border-radius: 3px; padding: 14px; margin-bottom: 12px; }
+  .passage-text { font-style: italic; font-size: 0.85rem; color: #ccc; margin-bottom: 10px; line-height: 1.5; border-left: 2px solid var(--accent); padding-left: 10px; }
+  .passage-codes { display: flex; flex-wrap: wrap; gap: 5px; }
+  .passage-code-chip { font-family: 'DM Mono', monospace; font-size: 0.7rem; background: var(--accent); color: white; padding: 3px 9px; border-radius: 10px; }
+  .back-btn { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 14px; display: flex; align-items: center; gap: 5px; letter-spacing: 0.05em; }
+  .back-btn:hover { color: var(--paper); }
+
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .status-dot.open { background: #4ade80; animation: blink 1.5s ease-in-out infinite; }
+  .status-dot.closed { background: var(--accent); }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* CONNECTING OVERLAY */
+  #connecting-overlay { position: fixed; inset: 0; background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 16px; }
+  #connecting-overlay .logo-big { font-family: 'DM Mono', monospace; font-size: 2rem; letter-spacing: 0.1em; color: var(--ink); }
+  #connecting-overlay .logo-big span { color: var(--accent); }
+  #connecting-overlay p { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--muted); }
+  #connecting-overlay.hidden { display: none; }
+
+  .flex-gap { display: flex; gap: 12px; align-items: center; }
+  .hidden { display: none !important; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 700px) {
+    .dashboard-layout, .student-layout, .results-layout { grid-template-columns: 1fr; }
+    .sidebar-panel, .student-sidebar, .results-sidebar { max-height: 40vh; }
+    .landing-card, .join-card { padding: 32px 24px; }
+    .setup-body { padding: 24px; }
+    .session-banner { padding: 12px 16px; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- CONNECTING OVERLAY -->
+<div id="connecting-overlay">
+  <div class="logo-big">Qual<span>Coder</span></div>
+  <p class="pulse">Connecting to database…</p>
+</div>
+
+<!-- SCREEN: LANDING -->
+<div id="screen-landing" class="screen">
+  <div class="landing-card">
+    <h1>Qual<em>Coder</em></h1>
+    <div class="subtitle">qualitative coding for the classroom</div>
+    <div class="role-buttons">
+      <button class="btn-role" onclick="showScreen('screen-instructor-setup')">
+        <span class="role-icon">🎓</span>
+        <div>
+          <span class="role-title">I am the instructor</span>
+          <span class="role-desc">Set up a session, paste a transcript, run the discussion</span>
+        </div>
+      </button>
+      <button class="btn-role" onclick="showScreen('screen-join')">
+        <span class="role-icon">📝</span>
+        <div>
+          <span class="role-title">I am a student</span>
+          <span class="role-desc">Join a session with a room code and start coding</span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: INSTRUCTOR SETUP -->
+<div id="screen-instructor-setup" class="screen">
+  <div class="app-header">
+    <div class="logo">Qual<span>Coder</span></div>
+    <div class="role-badge">Instructor — Setup</div>
+  </div>
+  <div class="setup-body">
+    <h2>Create a coding session</h2>
+    <div class="step-desc">Paste your transcript and give the session a name. Students will join with a 4-letter room code.</div>
+    <div class="field-group">
+      <label class="field-label">Session name</label>
+      <input type="text" id="session-name" placeholder="e.g. Week 4 — Housing interview" maxlength="80">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Interview transcript</label>
+      <textarea id="transcript-input" placeholder="Paste the full interview transcript here…"></textarea>
+    </div>
+    <div class="flex-gap">
+      <button class="btn-primary" id="create-btn" onclick="createSession()">Create session →</button>
+      <button class="btn-secondary" onclick="showScreen('screen-landing')">Back</button>
+    </div>
+    <div id="setup-error" style="margin-top:12px; font-family:'DM Mono',monospace; font-size:0.8rem; color:var(--accent);"></div>
+  </div>
+</div>
+
+<!-- SCREEN: INSTRUCTOR DASHBOARD -->
+<div id="screen-instructor-dashboard" class="screen">
+  <div class="app-header">
+    <div class="logo">Qual<span>Coder</span></div>
+    <div class="role-badge">Instructor — Live Dashboard</div>
+  </div>
+  <div class="session-banner">
+    <div>
+      <div style="font-size:0.68rem; color:#888; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:2px;">Room code</div>
+      <div class="room-code" id="dash-room-code">——</div>
+    </div>
+    <div class="stat"><span id="dash-student-count">0</span> students coded</div>
+    <div class="stat"><span id="dash-code-count">0</span> codes submitted</div>
+    <div class="stat">
+      <span class="status-dot open" id="status-dot"></span>
+      <span id="status-text">Coding open</span>
+    </div>
+    <div class="controls">
+      <button class="btn-control btn-close" id="btn-toggle-coding" onclick="toggleCoding()">Close coding</button>
+      <button class="btn-control btn-reveal" onclick="openResults()">Open results view</button>
+      <button class="btn-control btn-export" onclick="exportData()">Export CSV</button>
+    </div>
+  </div>
+  <div class="dashboard-layout">
+    <div class="transcript-panel">
+      <div class="transcript-title">
+        <span id="dash-session-name">Transcript</span>
+        <div class="view-toggle">
+          <button class="view-btn active" id="view-heatmap-btn" onclick="setView('heatmap')">Heatmap</button>
+          <button class="view-btn" id="view-plain-btn" onclick="setView('plain')">Plain</button>
+        </div>
+      </div>
+      <div id="transcript-display"></div>
+    </div>
+    <div class="sidebar-panel">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" id="tab-codes" onclick="switchTab('codes')">All codes</button>
+        <button class="tab-btn" id="tab-themes" onclick="switchTab('themes')">Themes</button>
+      </div>
+      <div id="tab-codes-content">
+        <div class="sidebar-section-title">Codes by frequency</div>
+        <div id="codes-list"><div class="no-codes-msg">Waiting for student submissions…</div></div>
+      </div>
+      <div id="tab-themes-content" class="hidden">
+        <div class="sidebar-section-title">Group codes into themes</div>
+        <div class="unassigned-pool">
+          <div class="unassigned-pool-title">Unassigned codes — click to assign</div>
+          <div id="unassigned-chips" class="unassigned-chips"></div>
+        </div>
+        <div id="themes-list"></div>
+        <button class="btn-add-theme" onclick="addTheme()">+ Add theme</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: JOIN -->
+<div id="screen-join" class="screen">
+  <div style="background:var(--ink); padding:14px 32px; border-bottom:3px solid var(--accent); flex-shrink:0;">
+    <div style="font-family:'DM Mono',monospace; font-size:1.1rem; letter-spacing:0.08em; color:var(--paper);">Qual<span style="color:var(--accent-light);">Coder</span></div>
+  </div>
+  <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:40px 20px;">
+    <div class="join-card">
+      <h2>Join a session</h2>
+      <div class="sub">Enter the 4-letter room code from your instructor</div>
+      <input type="text" id="room-code-input" class="room-input" placeholder="ABCD" maxlength="4"
+        oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')joinSession()">
+      <div class="join-error" id="join-error"></div>
+      <div class="field-group">
+        <label class="field-label">Your name or student ID (optional)</label>
+        <input type="text" id="student-name-input" placeholder="Anonymous">
+      </div>
+      <button class="btn-primary" onclick="joinSession()" style="width:100%; text-align:center;">Join session →</button>
+      <div style="margin-top:16px; text-align:center;">
+        <button class="btn-secondary" onclick="showScreen('screen-landing')">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: WAITING -->
+<div id="screen-waiting" class="screen">
+  <div style="background:var(--ink); padding:14px 32px; border-bottom:3px solid var(--accent); flex-shrink:0;">
+    <div style="font-family:'DM Mono',monospace; font-size:1.1rem; letter-spacing:0.08em; color:var(--paper);">Qual<span style="color:var(--accent-light);">Coder</span></div>
+  </div>
+  <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+    <div class="waiting-card">
+      <div style="font-family:'DM Mono',monospace; font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Connected to session</div>
+      <div class="big-code" id="waiting-room-code">——</div>
+      <div style="font-size:1.1rem; margin-bottom:24px; font-style:italic;" id="waiting-session-name"></div>
+      <p class="pulse">Waiting for the instructor to open coding…</p>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: STUDENT CODING -->
+<div id="screen-student-coding" class="screen">
+  <div class="app-header">
+    <div class="logo">Qual<span>Coder</span></div>
+    <div class="role-badge" id="student-session-label">Student — Coding</div>
+  </div>
+  <div style="background:#fffdf8; border-bottom:1px solid var(--border); padding:10px 32px; font-family:'DM Mono',monospace; font-size:0.78rem; color:var(--muted); flex-shrink:0;">
+    Select any passage of text, then type a code for it. Add as many codes as you like.
+  </div>
+  <div class="student-layout" style="flex:1; overflow:hidden;">
+    <div class="student-transcript">
+      <div class="transcript-title" style="color:var(--muted);">
+        <span id="student-transcript-title">Transcript</span>
+      </div>
+      <div id="student-transcript-text" class="student-transcript-text"></div>
+    </div>
+    <div class="student-sidebar">
+      <div class="my-codes-title">My codes (<span id="my-code-count">0</span>)</div>
+      <div id="my-codes-list"></div>
+      <div class="student-submit-area">
+        <div class="submit-note" id="submit-note">Code as many passages as you like, then submit.</div>
+        <button class="btn-primary" id="student-submit-btn" onclick="submitCoding()" style="width:100%; text-align:center;">Submit my coding →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: SUBMITTED -->
+<div id="screen-submitted" class="screen">
+  <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+    <div class="submitted-card">
+      <div class="checkmark">✓</div>
+      <h2>Coding submitted!</h2>
+      <p style="margin-top:10px;">Your instructor will open the results shortly.<br>Follow the discussion on the projected screen.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: RESULTS -->
+<div id="screen-results" class="screen">
+  <div class="app-header">
+    <div class="logo">Qual<span>Coder</span></div>
+    <div class="role-badge" id="results-role-label">Results</div>
+  </div>
+  <div class="session-banner" style="flex-shrink:0;">
+    <div>
+      <div style="font-size:0.68rem; color:#888; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:2px;">Session</div>
+      <div style="font-size:1rem; font-weight:500;" id="results-session-name"></div>
+    </div>
+    <div class="stat"><span id="results-student-count">0</span> students coded</div>
+    <div class="stat"><span id="results-code-count">0</span> codes total</div>
+    <div id="results-instructor-controls" class="controls hidden">
+      <button class="btn-control btn-export" onclick="exportData()">Export CSV</button>
+      <button class="btn-control" style="background:#5b4fcf; color:white; border:none;" onclick="showScreen('screen-instructor-dashboard')">← Back to dashboard</button>
+    </div>
+  </div>
+  <div class="results-layout" style="flex:1; overflow:hidden;">
+    <div class="results-transcript">
+      <div class="heatmap-legend">
+        <span>Heatmap intensity:</span>
+        <div class="legend-bar">
+          <div style="background:rgba(200,75,47,0.08)"></div>
+          <div style="background:rgba(200,75,47,0.18)"></div>
+          <div style="background:rgba(200,75,47,0.30)"></div>
+          <div style="background:rgba(200,75,47,0.45)"></div>
+          <div style="background:rgba(200,75,47,0.62)"></div>
+        </div>
+        <span>= more students coded this passage</span>
+      </div>
+      <div id="results-transcript-display" style="font-size:1rem; line-height:1.85; white-space:pre-wrap; word-break:break-word; cursor:pointer;"></div>
+    </div>
+    <div class="results-sidebar">
+      <div id="results-sidebar-default">
+        <div class="sidebar-section-title">All codes — click to highlight</div>
+        <div id="results-codes-list"></div>
+        <div id="results-themes-display"></div>
+      </div>
+      <div id="results-passage-detail" class="hidden">
+        <button class="back-btn" onclick="closePassageDetail()">← All codes</button>
+        <div class="sidebar-section-title">Codes on this passage</div>
+        <div id="passage-detail-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CODE POPUP -->
+<div class="code-popup" id="code-popup">
+  <div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--muted); margin-bottom:8px; letter-spacing:0.06em; text-transform:uppercase;">Code this passage</div>
+  <input type="text" id="code-input" placeholder="e.g. emotional labour, identity, resistance…" maxlength="80" onkeydown="if(event.key==='Enter')saveCode()">
+  <div class="code-popup-buttons">
+    <button class="btn-small btn-small-primary" onclick="saveCode()">Save</button>
+    <button class="btn-small btn-small-cancel" onclick="closePopup()">Cancel</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ══════════════════════════════════════════
+//  FIREBASE INIT
+// ══════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyCkkSfvynkW35SJcuNLyVO76_XyFwyMgfY",
+  authDomain: "qualcoder-50224.firebaseapp.com",
+  databaseURL: "https://qualcoder-50224-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "qualcoder-50224",
+  storageBucket: "qualcoder-50224.firebasestorage.app",
+  messagingSenderId: "1079247660304",
+  appId: "1:1079247660304:web:4e18ed0f335de7feff7195"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Hide connecting overlay once Firebase is ready
+document.getElementById('connecting-overlay').classList.add('hidden');
+showScreen('screen-landing');
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+const STATE = {
+  roomCode: null,
+  sessionName: null,
+  transcript: null,
+  isInstructor: false,
+  codingOpen: true,
+  allCodings: {},
+  themes: [],
+  studentId: null,
+  studentName: null,
+  myCodes: [],
+  pendingSelection: null,
+  currentView: 'heatmap',
+  activeTab: 'codes',
+  // Firebase listeners to detach on cleanup
+  sessionListener: null,
+};
+
+// ══════════════════════════════════════════
+//  FIREBASE HELPERS
+// ══════════════════════════════════════════
+
+function sessionRef(code) { return ref(db, `sessions/${code}`); }
+function metaRef(code)    { return ref(db, `sessions/${code}/meta`); }
+function codingsRef(code) { return ref(db, `sessions/${code}/codings`); }
+function studentRef(code, studentId) { return ref(db, `sessions/${code}/codings/${studentId}`); }
+
+async function fbSaveMeta(code, meta) {
+  await set(metaRef(code), meta);
+}
+
+async function fbLoadMeta(code) {
+  const snap = await get(metaRef(code));
+  return snap.exists() ? snap.val() : null;
+}
+
+async function fbLoadCodings(code) {
+  const snap = await get(codingsRef(code));
+  return snap.exists() ? snap.val() : {};
+}
+
+async function fbSaveStudentCoding(code, studentKey, codings) {
+  // Store as array under the student key (Firebase keys can't have | so encode it)
+  const safeKey = studentKey.replace(/[.#$[\]|]/g, '_');
+  await set(ref(db, `sessions/${code}/codings/${safeKey}`), {
+    name: STATE.studentName || 'Anonymous',
+    codings: codings,
+    submittedAt: Date.now()
+  });
+}
+
+async function fbUpdateMeta(code, updates) {
+  await update(metaRef(code), updates);
+}
+
+// ══════════════════════════════════════════
+//  SCREEN NAVIGATION
+// ══════════════════════════════════════════
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+window.showScreen = showScreen;
+
+// ══════════════════════════════════════════
+//  INSTRUCTOR: CREATE SESSION
+// ══════════════════════════════════════════
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+window.createSession = async function() {
+  const name = document.getElementById('session-name').value.trim();
+  const transcript = document.getElementById('transcript-input').value.trim();
+  const errEl = document.getElementById('setup-error');
+  const btn = document.getElementById('create-btn');
+
+  if (!name) { errEl.textContent = 'Please give the session a name.'; return; }
+  if (!transcript || transcript.length < 50) { errEl.textContent = 'Please paste a transcript (at least 50 characters).'; return; }
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
+  const roomCode = generateRoomCode();
+  STATE.roomCode = roomCode;
+  STATE.sessionName = name;
+  STATE.transcript = transcript;
+  STATE.isInstructor = true;
+  STATE.codingOpen = true;
+  STATE.allCodings = {};
+  STATE.themes = [];
+
+  try {
+    await fbSaveMeta(roomCode, {
+      sessionName: name,
+      transcript: transcript,
+      codingOpen: true,
+      resultsOpen: false,
+      themes: [],
+      createdAt: Date.now()
+    });
+  } catch(e) {
+    errEl.textContent = 'Could not save to database. Check your internet connection.';
+    btn.disabled = false;
+    btn.textContent = 'Create session →';
+    return;
+  }
+
+  document.getElementById('dash-room-code').textContent = roomCode;
+  document.getElementById('dash-session-name').textContent = name;
+  renderTranscript();
+  updateDashboardStats();
+  startInstructorListener();
+  showScreen('screen-instructor-dashboard');
+  btn.disabled = false;
+  btn.textContent = 'Create session →';
+};
+
+// ══════════════════════════════════════════
+//  INSTRUCTOR: REAL-TIME LISTENER
+// ══════════════════════════════════════════
+
+function startInstructorListener() {
+  // Listen to the whole session node for live updates
+  const sRef = sessionRef(STATE.roomCode);
+  STATE.sessionListener = onValue(sRef, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.val();
+    const meta = data.meta || {};
+    const codings = data.codings || {};
+
+    // Rebuild allCodings: { studentKey: [{start,end,text,code},...] }
+    STATE.allCodings = {};
+    Object.entries(codings).forEach(([key, val]) => {
+      STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
+    });
+
+    STATE.codingOpen = meta.codingOpen !== false;
+    STATE.themes = meta.themes || [];
+
+    updateDashboardStats();
+    if (STATE.currentView === 'heatmap') renderTranscript();
+    renderCodesList();
+    if (STATE.activeTab === 'themes') renderThemesTab();
+
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    const btn = document.getElementById('btn-toggle-coding');
+    if (STATE.codingOpen) {
+      dot.className = 'status-dot open';
+      txt.textContent = 'Coding open';
+      btn.textContent = 'Close coding';
+      btn.className = 'btn-control btn-close';
+    } else {
+      dot.className = 'status-dot closed';
+      txt.textContent = 'Coding closed';
+      btn.textContent = 'Re-open coding';
+      btn.className = 'btn-control btn-open';
+    }
+  });
+}
+
+function updateDashboardStats() {
+  const numStudents = Object.keys(STATE.allCodings).length;
+  const numCodes = Object.values(STATE.allCodings).flat().length;
+  document.getElementById('dash-student-count').textContent = numStudents;
+  document.getElementById('dash-code-count').textContent = numCodes;
+}
+
+window.toggleCoding = async function() {
+  STATE.codingOpen = !STATE.codingOpen;
+  await fbUpdateMeta(STATE.roomCode, { codingOpen: STATE.codingOpen });
+};
+
+window.openResults = async function() {
+  await fbUpdateMeta(STATE.roomCode, { resultsOpen: true });
+  // Load latest codings then show results
+  const codings = await fbLoadCodings(STATE.roomCode);
+  STATE.allCodings = {};
+  Object.entries(codings).forEach(([key, val]) => {
+    STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
+  });
+  renderResults(true);
+  showScreen('screen-results');
+};
+
+window.setView = function(v) {
+  STATE.currentView = v;
+  document.getElementById('view-heatmap-btn').classList.toggle('active', v === 'heatmap');
+  document.getElementById('view-plain-btn').classList.toggle('active', v === 'plain');
+  renderTranscript();
+};
+
+window.switchTab = function(tab) {
+  STATE.activeTab = tab;
+  document.getElementById('tab-codes-content').classList.toggle('hidden', tab !== 'codes');
+  document.getElementById('tab-themes-content').classList.toggle('hidden', tab !== 'themes');
+  document.getElementById('tab-codes').classList.toggle('active', tab === 'codes');
+  document.getElementById('tab-themes').classList.toggle('active', tab === 'themes');
+  if (tab === 'themes') renderThemesTab();
+};
+
+// ══════════════════════════════════════════
+//  TRANSCRIPT RENDERING
+// ══════════════════════════════════════════
+
+function buildCoverageMap() {
+  const transcript = STATE.transcript || '';
+  const counts = new Array(transcript.length).fill(0);
+  Object.values(STATE.allCodings).forEach(codings => {
+    codings.forEach(c => {
+      for (let i = c.start; i < c.end && i < counts.length; i++) counts[i]++;
+    });
+  });
+  return counts;
+}
+
+function renderTranscript() {
+  const container = document.getElementById('transcript-display');
+  const transcript = STATE.transcript || '';
+  if (STATE.currentView === 'plain') { container.textContent = transcript; return; }
+
+  const allCodings = Object.values(STATE.allCodings).flat();
+  if (allCodings.length === 0) { container.textContent = transcript; return; }
+
+  const counts = buildCoverageMap();
+  const maxCount = Math.max(...counts, 1);
+  const boundaries = new Set([0, transcript.length]);
+  allCodings.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+  const sorted = [...boundaries].sort((a,b) => a-b);
+
+  let html = '';
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i+1];
+    const text = escHtml(transcript.slice(s, e));
+    const cnt = counts[s];
+    if (cnt === 0) { html += text; continue; }
+    const alpha = 0.1 + (cnt / maxCount) * 0.55;
+    const codes = [...new Set(allCodings.filter(c => c.start <= s && c.end >= e).map(c => c.code))];
+    const tip = `${cnt} student${cnt>1?'s':''}: ${codes.join(', ')}`;
+    html += `<span class="coded-span" style="background:rgba(200,75,47,${alpha.toFixed(2)})" onclick="showPassageDetail(${s},${e})"><span class="code-tooltip">${escHtml(tip)}</span>${text}</span>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderCodesList() {
+  const container = document.getElementById('codes-list');
+  const allCodings = Object.values(STATE.allCodings).flat();
+  if (allCodings.length === 0) {
+    container.innerHTML = '<div class="no-codes-msg">Waiting for student submissions…</div>';
+    return;
+  }
+  const freq = {};
+  allCodings.forEach(c => { freq[c.code] = (freq[c.code]||0)+1; });
+  const sorted = Object.entries(freq).sort((a,b) => b[1]-a[1]);
+  container.innerHTML = sorted.map(([code, count]) =>
+    `<div class="code-item" onclick="highlightCode('${escAttr(code)}')">
+      <span class="code-count">${count}</span>
+      <span class="code-label">${escHtml(code)}</span>
+    </div>`
+  ).join('');
+}
+
+window.highlightCode = function(code) {
+  const targetCodings = Object.values(STATE.allCodings).flat().filter(c => c.code === code);
+  const transcript = STATE.transcript || '';
+  const boundaries = new Set([0, transcript.length]);
+  targetCodings.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+  const sorted = [...boundaries].sort((a,b) => a-b);
+  let html = '';
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i+1];
+    const text = escHtml(transcript.slice(s, e));
+    const hit = targetCodings.some(c => c.start <= s && c.end >= e);
+    html += hit
+      ? `<span class="coded-span" style="background:rgba(200,75,47,0.45); font-weight:bold;">${text}</span>`
+      : `<span style="opacity:0.4;">${text}</span>`;
+  }
+  document.getElementById('transcript-display').innerHTML = html;
+};
+
+// ══════════════════════════════════════════
+//  THEMES
+// ══════════════════════════════════════════
+
+function renderThemesTab() {
+  const allCodings = Object.values(STATE.allCodings).flat();
+  const allCodes = [...new Set(allCodings.map(c => c.code))];
+  const assignedCodes = STATE.themes.flatMap(t => t.codes);
+  const unassigned = allCodes.filter(c => !assignedCodes.includes(c));
+
+  document.getElementById('unassigned-chips').innerHTML = unassigned.length === 0
+    ? '<span style="font-family:\'DM Mono\',monospace; font-size:0.72rem; color:#555;">All codes assigned</span>'
+    : unassigned.map(c => `<span class="unassigned-chip" onclick="assignCodeToTheme('${escAttr(c)}')">${escHtml(c)}</span>`).join('');
+
+  document.getElementById('themes-list').innerHTML = STATE.themes.map((theme, ti) => `
+    <div class="theme-item">
+      <div class="theme-item-header">
+        <input class="theme-name-input" value="${escHtml(theme.name)}" placeholder="Theme name…" oninput="renameTheme(${ti}, this.value)">
+        <button class="btn-delete" onclick="deleteTheme(${ti})">×</button>
+      </div>
+      <div class="theme-codes">
+        ${theme.codes.map(c => `<span class="theme-code-chip" onclick="unassignCode(${ti},'${escAttr(c)}')">${escHtml(c)} ×</span>`).join('')}
+        ${theme.codes.length===0 ? '<span style="font-size:0.72rem; font-family:\'DM Mono\',monospace; color:#555;">No codes yet</span>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function saveThemes() {
+  await fbUpdateMeta(STATE.roomCode, { themes: STATE.themes });
+}
+
+window.addTheme = function() {
+  STATE.themes.push({ name: 'New theme', codes: [] });
+  saveThemes();
+  renderThemesTab();
+};
+
+window.renameTheme = function(ti, name) {
+  STATE.themes[ti].name = name;
+  saveThemes();
+};
+
+window.deleteTheme = function(ti) {
+  STATE.themes.splice(ti, 1);
+  saveThemes();
+  renderThemesTab();
+};
+
+window.assignCodeToTheme = function(code) {
+  if (STATE.themes.length === 0) { window.addTheme(); }
+  if (STATE.themes.length === 1) {
+    if (!STATE.themes[0].codes.includes(code)) STATE.themes[0].codes.push(code);
+    saveThemes(); renderThemesTab(); return;
+  }
+  const names = STATE.themes.map((t,i) => `${i+1}: ${t.name}`).join('\n');
+  const choice = prompt(`Assign "${code}" to which theme?\n\n${names}\n\nEnter number:`);
+  const idx = parseInt(choice) - 1;
+  if (idx >= 0 && idx < STATE.themes.length) {
+    if (!STATE.themes[idx].codes.includes(code)) STATE.themes[idx].codes.push(code);
+    saveThemes(); renderThemesTab();
+  }
+};
+
+window.unassignCode = function(ti, code) {
+  STATE.themes[ti].codes = STATE.themes[ti].codes.filter(c => c !== code);
+  saveThemes(); renderThemesTab();
+};
+
+// ══════════════════════════════════════════
+//  PASSAGE DETAIL
+// ══════════════════════════════════════════
+
+window.showPassageDetail = function(start, end) {
+  const transcript = STATE.transcript || '';
+  const passageText = transcript.slice(start, end);
+  const allCodings = Object.values(STATE.allCodings).flat();
+  const matching = allCodings.filter(c => c.start <= start && c.end >= end);
+  const uniqueCodes = [...new Set(matching.map(c => c.code))];
+
+  let html = `<div class="passage-detail">
+    <div class="passage-text">"${escHtml(passageText.trim().slice(0,200))}${passageText.trim().length>200?'…':''}"</div>
+    <div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:#888; margin-bottom:8px;">${matching.length} coding${matching.length!==1?'s':''}</div>
+    <div class="passage-codes">${uniqueCodes.map(c => `<span class="passage-code-chip">${escHtml(c)}</span>`).join('')}</div>
+  </div>`;
+
+  let breakdown = '';
+  Object.entries(STATE.allCodings).forEach(([sid, codings]) => {
+    const hits = codings.filter(c => c.start <= start && c.end >= end);
+    if (hits.length) {
+      const sname = sid.includes('|') ? sid.split('|')[1] : sid.slice(0,8);
+      breakdown += `<div style="padding:6px 0; border-bottom:1px solid #2a2a2a; font-size:0.8rem;">
+        <span style="font-family:'DM Mono',monospace; color:#888; font-size:0.7rem;">${escHtml(sname)}</span>
+        <div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">
+          ${hits.map(h => `<span class="passage-code-chip">${escHtml(h.code)}</span>`).join('')}
+        </div>
+      </div>`;
+    }
+  });
+  if (breakdown) html += `<div style="margin-top:12px;"><div class="sidebar-section-title">By student</div>${breakdown}</div>`;
+
+  document.getElementById('passage-detail-content').innerHTML = html;
+  document.getElementById('results-sidebar-default').classList.add('hidden');
+  document.getElementById('results-passage-detail').classList.remove('hidden');
+};
+
+window.closePassageDetail = function() {
+  document.getElementById('results-sidebar-default').classList.remove('hidden');
+  document.getElementById('results-passage-detail').classList.add('hidden');
+};
+
+// ══════════════════════════════════════════
+//  RESULTS SCREEN
+// ══════════════════════════════════════════
+
+function renderResults(isInstructor) {
+  document.getElementById('results-role-label').textContent = isInstructor ? 'Instructor — Results' : 'Results';
+  document.getElementById('results-session-name').textContent = STATE.sessionName || '';
+  document.getElementById('results-instructor-controls').classList.toggle('hidden', !isInstructor);
+
+  const numStudents = Object.keys(STATE.allCodings).length;
+  const numCodes = Object.values(STATE.allCodings).flat().length;
+  document.getElementById('results-student-count').textContent = numStudents;
+  document.getElementById('results-code-count').textContent = numCodes;
+
+  // Transcript heatmap
+  const transcript = STATE.transcript || '';
+  const allCodings = Object.values(STATE.allCodings).flat();
+  if (allCodings.length === 0) {
+    document.getElementById('results-transcript-display').textContent = transcript;
+  } else {
+    const counts = buildCoverageMap();
+    const maxCount = Math.max(...counts, 1);
+    const boundaries = new Set([0, transcript.length]);
+    allCodings.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+    const sorted = [...boundaries].sort((a,b) => a-b);
+    let html = '';
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const s = sorted[i], e = sorted[i+1];
+      const text = escHtml(transcript.slice(s, e));
+      const cnt = counts[s];
+      if (cnt === 0) { html += text; continue; }
+      const alpha = 0.1 + (cnt / maxCount) * 0.55;
+      html += `<span class="coded-span" style="background:rgba(200,75,47,${alpha.toFixed(2)})" onclick="showPassageDetail(${s},${e})">${text}</span>`;
+    }
+    document.getElementById('results-transcript-display').innerHTML = html;
+  }
+
+  // Codes list
+  const freq = {};
+  allCodings.forEach(c => { freq[c.code] = (freq[c.code]||0)+1; });
+  const sorted = Object.entries(freq).sort((a,b) => b[1]-a[1]);
+  document.getElementById('results-codes-list').innerHTML = sorted.map(([code, count]) =>
+    `<div class="code-item" onclick="highlightResultCode('${escAttr(code)}')">
+      <span class="code-count">${count}</span>
+      <span class="code-label">${escHtml(code)}</span>
+    </div>`
+  ).join('') || '<div class="no-codes-msg">No codes submitted yet.</div>';
+
+  // Themes
+  const themesDiv = document.getElementById('results-themes-display');
+  if (STATE.themes.length > 0) {
+    themesDiv.innerHTML = `<div class="sidebar-section-title" style="margin-top:20px;">Themes</div>` +
+      STATE.themes.map(t => `
+        <div style="background:#252525; border-radius:3px; padding:10px 12px; margin-bottom:8px;">
+          <div style="font-family:'DM Mono',monospace; font-size:0.78rem; color:#ddd; margin-bottom:6px;">${escHtml(t.name)}</div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            ${t.codes.map(c => `<span class="passage-code-chip">${escHtml(c)}</span>`).join('')}
+          </div>
+        </div>`).join('');
+  } else {
+    themesDiv.innerHTML = '';
+  }
+}
+
+window.highlightResultCode = function(code) {
+  const allCodings = Object.values(STATE.allCodings).flat().filter(c => c.code === code);
+  const transcript = STATE.transcript || '';
+  const boundaries = new Set([0, transcript.length]);
+  allCodings.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+  const sorted = [...boundaries].sort((a,b) => a-b);
+  let html = '';
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i+1];
+    const text = escHtml(transcript.slice(s, e));
+    const hit = allCodings.some(c => c.start <= s && c.end >= e);
+    html += hit
+      ? `<span class="coded-span" style="background:rgba(200,75,47,0.5); font-weight:bold;" onclick="showPassageDetail(${s},${e})">${text}</span>`
+      : `<span style="opacity:0.35;">${text}</span>`;
+  }
+  document.getElementById('results-transcript-display').innerHTML = html;
+};
+
+// ══════════════════════════════════════════
+//  STUDENT: JOIN
+// ══════════════════════════════════════════
+
+window.joinSession = async function() {
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+  const name = document.getElementById('student-name-input').value.trim() || 'Anonymous';
+  const errEl = document.getElementById('join-error');
+
+  if (code.length !== 4) { errEl.textContent = 'Room code must be 4 letters.'; return; }
+  errEl.textContent = 'Looking up session…';
+
+  const meta = await fbLoadMeta(code);
+  if (!meta) { errEl.textContent = 'Room not found. Check the code and try again.'; return; }
+  errEl.textContent = '';
+
+  STATE.roomCode = code;
+  STATE.sessionName = meta.sessionName;
+  STATE.transcript = meta.transcript;
+  STATE.isInstructor = false;
+  STATE.studentId = 'stu_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  STATE.studentName = name;
+  STATE.myCodes = [];
+  STATE.codingOpen = meta.codingOpen;
+
+  if (!meta.codingOpen) {
+    document.getElementById('waiting-room-code').textContent = code;
+    document.getElementById('waiting-session-name').textContent = meta.sessionName;
+    showScreen('screen-waiting');
+    startStudentListener();
+    return;
+  }
+
+  if (meta.resultsOpen) {
+    // Session already in results mode — load codings and show results
+    const codings = await fbLoadCodings(code);
+    STATE.allCodings = {};
+    Object.entries(codings).forEach(([key, val]) => {
+      STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
+    });
+    STATE.themes = meta.themes || [];
+    renderResults(false);
+    showScreen('screen-results');
+    return;
+  }
+
+  startStudentCoding();
+};
+
+function startStudentCoding() {
+  document.getElementById('student-session-label').textContent = `${STATE.sessionName || 'Session'} — Coding`;
+  document.getElementById('student-transcript-title').textContent = STATE.sessionName || 'Transcript';
+  renderStudentTranscript();
+  showScreen('screen-student-coding');
+  startStudentListener();
+}
+
+// ══════════════════════════════════════════
+//  STUDENT: REAL-TIME LISTENER
+// ══════════════════════════════════════════
+
+function startStudentListener() {
+  const mRef = metaRef(STATE.roomCode);
+  STATE.sessionListener = onValue(mRef, (snap) => {
+    if (!snap.exists()) return;
+    const meta = snap.val();
+    STATE.codingOpen = meta.codingOpen !== false;
+
+    const currentScreen = document.querySelector('.screen.active')?.id;
+
+    // Waiting → coding opens
+    if (currentScreen === 'screen-waiting' && meta.codingOpen) {
+      STATE.transcript = meta.transcript;
+      STATE.sessionName = meta.sessionName;
+      startStudentCoding();
+      return;
+    }
+
+    // Results revealed
+    if (meta.resultsOpen && currentScreen !== 'screen-results') {
+      // Fetch all codings then show
+      get(codingsRef(STATE.roomCode)).then(snap2 => {
+        const codings = snap2.exists() ? snap2.val() : {};
+        STATE.allCodings = {};
+        Object.entries(codings).forEach(([key, val]) => {
+          STATE.allCodings[key + '|' + (val.name||'Anonymous')] = val.codings || [];
+        });
+        STATE.themes = meta.themes || [];
+        renderResults(false);
+        showScreen('screen-results');
+      });
+    }
+  });
+}
+
+// ══════════════════════════════════════════
+//  STUDENT: TRANSCRIPT & CODING
+// ══════════════════════════════════════════
+
+function renderStudentTranscript() {
+  document.getElementById('student-transcript-text').textContent = STATE.transcript;
+  renderStudentHighlights();
+}
+
+function renderStudentHighlights() {
+  const transcript = STATE.transcript || '';
+  const container = document.getElementById('student-transcript-text');
+  if (STATE.myCodes.length === 0) { container.textContent = transcript; return; }
+
+  const boundaries = new Set([0, transcript.length]);
+  STATE.myCodes.forEach(c => { boundaries.add(c.start); boundaries.add(c.end); });
+  const sorted = [...boundaries].sort((a,b) => a-b);
+
+  let html = '';
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i+1];
+    const text = escHtml(transcript.slice(s, e));
+    const hits = STATE.myCodes.filter(c => c.start <= s && c.end >= e);
+    html += hits.length
+      ? `<span class="student-coded-span" title="${escHtml(hits.map(h=>h.code).join(', '))}">${text}</span>`
+      : text;
+  }
+  container.innerHTML = html;
+}
+
+// Text selection
+document.addEventListener('mouseup', handleSelection);
+document.addEventListener('touchend', handleSelection);
+
+function handleSelection(e) {
+  if (!document.getElementById('screen-student-coding').classList.contains('active')) return;
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+  const container = document.getElementById('student-transcript-text');
+  if (!container.contains(sel.anchorNode)) return;
+
+  const range = sel.getRangeAt(0);
+  const preRange = document.createRange();
+  preRange.setStart(container, 0);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  const start = preRange.toString().length;
+  const end = start + range.toString().length;
+  if (STATE.transcript.slice(start, end).trim().length === 0) return;
+
+  STATE.pendingSelection = { start, end, text: STATE.transcript.slice(start, end) };
+
+  const rect = range.getBoundingClientRect();
+  const popup = document.getElementById('code-popup');
+  popup.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
+  popup.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+  popup.classList.add('visible');
+  document.getElementById('code-input').value = '';
+  setTimeout(() => document.getElementById('code-input').focus(), 50);
+  sel.removeAllRanges();
+}
+
+window.saveCode = function() {
+  const code = document.getElementById('code-input').value.trim();
+  if (!code || !STATE.pendingSelection) { closePopup(); return; }
+  STATE.myCodes.push({ ...STATE.pendingSelection, code });
+  closePopup();
+  renderStudentHighlights();
+  renderMyCodesList();
+};
+
+window.closePopup = function() {
+  document.getElementById('code-popup').classList.remove('visible');
+  STATE.pendingSelection = null;
+};
+
+function renderMyCodesList() {
+  document.getElementById('my-code-count').textContent = STATE.myCodes.length;
+  document.getElementById('my-codes-list').innerHTML = STATE.myCodes.map((c, i) => `
+    <div class="my-code-entry">
+      <div style="flex:1;">
+        <div class="code-tag">${escHtml(c.code)}</div>
+        <div class="code-excerpt">"${escHtml(c.text.trim().slice(0,60))}${c.text.trim().length>60?'…':''}"</div>
+      </div>
+      <button class="btn-delete" onclick="deleteMyCode(${i})">×</button>
+    </div>`).join('')
+    || '<div style="font-family:\'DM Mono\',monospace; font-size:0.8rem; color:var(--muted); font-style:italic; padding:10px 0;">No codes yet. Select text to begin.</div>';
+}
+
+window.deleteMyCode = function(i) {
+  STATE.myCodes.splice(i, 1);
+  renderStudentHighlights();
+  renderMyCodesList();
+};
+
+window.submitCoding = async function() {
+  if (STATE.myCodes.length === 0) {
+    document.getElementById('submit-note').textContent = 'Add at least one code before submitting.';
+    document.getElementById('submit-note').style.color = 'var(--accent)';
+    return;
+  }
+  const btn = document.getElementById('student-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const studentKey = STATE.studentId.replace(/[.#$[\]|]/g, '_');
+    await fbSaveStudentCoding(STATE.roomCode, studentKey, STATE.myCodes);
+    // Detach listener — no need to keep polling after submit
+    if (STATE.sessionListener) {
+      off(metaRef(STATE.roomCode), 'value', STATE.sessionListener);
+    }
+    showScreen('screen-submitted');
+    // Re-attach a lightweight listener just for resultsOpen
+    startStudentListener();
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Submit my coding →';
+    document.getElementById('submit-note').textContent = 'Submission failed — check your connection and try again.';
+    document.getElementById('submit-note').style.color = 'var(--accent)';
+  }
+};
+
+// ══════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════
+
+window.exportData = function() {
+  const rows = [['student_id','student_name','start','end','text','code']];
+  Object.entries(STATE.allCodings).forEach(([sid, codings]) => {
+    const parts = sid.split('|');
+    const id = parts[0], name = parts[1] || 'Anonymous';
+    codings.forEach(c => {
+      rows.push([id, name, c.start, c.end,
+        `"${(c.text||'').replace(/"/g,'""')}"`,
+        `"${(c.code||'').replace(/"/g,'""')}"`
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = `qualcoder_${STATE.roomCode}_${(STATE.sessionName||'session').replace(/\s+/g,'_')}.csv`;
+  a.click();
+};
+
+// ══════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escAttr(str) {
+  return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') window.closePopup(); });
+
+</script>
+</body>
+</html>
