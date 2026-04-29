@@ -850,7 +850,7 @@ function renderThemesTab() {
   // Unassigned pool
   let poolHtml = '';
   if (unassigned.length === 0) {
-    poolHtml = '<span style="font-family:'DM Mono',monospace; font-size:0.72rem; color:#555;">All codes assigned to themes</span>';
+    poolHtml = '<span style="font-family:DM Mono,monospace; font-size:0.72rem; color:#555;">All codes assigned to themes</span>';
   } else if (pending) {
     // Picking mode — show which code is being assigned and cancel option
     poolHtml = `<div style="font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--accent-light); margin-bottom:8px;">
@@ -866,7 +866,7 @@ function renderThemesTab() {
 
   // Themes list
   document.getElementById('themes-list').innerHTML = STATE.themes.length === 0
-    ? '<div style="font-family:'DM Mono',monospace; font-size:0.75rem; color:#555; padding:8px 0;">Click + Add theme to create your first theme</div>'
+    ? '<div style="font-family:DM Mono,monospace; font-size:0.75rem; color:#555; padding:8px 0;">Click + Add theme to create your first theme</div>'
     : STATE.themes.map((theme, ti) => `
     <div class="theme-item" style="${pending ? 'cursor:pointer; outline: 1px solid #444;' : ''}" ${pending ? `onclick="assignToSpecificTheme(${ti})" title="Assign '${escAttr(pending)}' to this theme"` : ''}>
       <div class="theme-item-header">
