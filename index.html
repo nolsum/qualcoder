@@ -1188,9 +1188,12 @@ window.submitCoding = async function() {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
-  try {
+ try {
     const studentKey = STATE.studentId.replace(/[.#$[\]|]/g, '_');
+    console.log('Submitting to path:', `sessions/${STATE.roomCode}/codings/${studentKey}`);
+    console.log('Codings data:', JSON.stringify(STATE.myCodes));
     await fbSaveStudentCoding(STATE.roomCode, studentKey, STATE.myCodes);
+    console.log('Submit SUCCESS');
     // Detach listener — no need to keep polling after submit
     if (STATE.sessionListener) {
       off(metaRef(STATE.roomCode), 'value', STATE.sessionListener);
