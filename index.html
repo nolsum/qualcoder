@@ -220,8 +220,22 @@
 <!-- CONNECTING OVERLAY -->
 <div id="connecting-overlay">
   <div class="logo-big">Qual<span>Coder</span></div>
-  <p class="pulse">Connecting to database…</p>
+  <p class="pulse" id="connecting-msg">Connecting to database…</p>
+  <p id="connecting-error" style="display:none; font-family:'DM Mono',monospace; font-size:0.78rem; color:var(--accent); max-width:340px; text-align:center; line-height:1.6;"></p>
 </div>
+<script>
+  // If the module script hasn't hidden the overlay within 8 seconds, show an error
+  window._connectTimeout = setTimeout(function() {
+    var msg = document.getElementById('connecting-msg');
+    var err = document.getElementById('connecting-error');
+    if (document.getElementById('connecting-overlay').classList.contains('hidden')) return;
+    if (msg) msg.style.display = 'none';
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = 'Could not connect to the database. Check your internet connection and reload the page. If the problem persists, the Firebase SDK may be blocked by a browser extension or firewall.';
+    }
+  }, 8000);
+</script>
 
 <!-- SCREEN: LANDING -->
 <div id="screen-landing" class="screen">
@@ -482,10 +496,21 @@ const firebaseConfig = {
   appId: "1:1079247660304:web:4e18ed0f335de7feff7195"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+let app, db;
+try {
+  app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+} catch(e) {
+  clearTimeout(window._connectTimeout);
+  const msg = document.getElementById('connecting-msg');
+  const err = document.getElementById('connecting-error');
+  if (msg) msg.style.display = 'none';
+  if (err) { err.style.display = 'block'; err.textContent = 'Firebase initialisation failed: ' + e.message; }
+  throw e;
+}
 
 // Hide connecting overlay once Firebase is ready
+clearTimeout(window._connectTimeout);
 document.getElementById('connecting-overlay').classList.add('hidden');
 showScreen('screen-landing');
 
