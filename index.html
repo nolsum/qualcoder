@@ -659,7 +659,8 @@ function startInstructorListener() {
   });
 
   // 2. Codings listener — fires whenever any student submits
-  onValue(codingsRef(STATE.roomCode), (snap) => {
+ onValue(codingsRef(STATE.roomCode), (snap) => {
+    console.log('CODINGS FIRED, exists:', snap.exists(), 'val:', JSON.stringify(snap.val()));
     STATE.allCodings = {};
     if (snap.exists()) {
       const codings = snap.val();
