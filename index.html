@@ -1201,11 +1201,13 @@ window.submitCoding = async function() {
     showScreen('screen-submitted');
     // Re-attach a lightweight listener just for resultsOpen
     startStudentListener();
-  } catch(e) {
+} catch(e) {
+    console.error('Submit FAILED:', e.message, e.code, e);
     btn.disabled = false;
     btn.textContent = 'Submit my coding →';
     document.getElementById('submit-note').textContent = 'Submission failed — check your connection and try again.';
     document.getElementById('submit-note').style.color = 'var(--accent)';
+  }
   }
 };
 
